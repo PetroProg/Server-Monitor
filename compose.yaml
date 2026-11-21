@@ -1,0 +1,35 @@
+services:
+  server-monitor:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: server-monitor
+    restart: unless-stopped
+    ports:
+      - "8085:8085"
+    env_file:
+      - .env
+    environment:
+      - TZ=Europe/Zurich
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
+    networks:
+      - default
+      - news-ai_default
+    healthcheck:
+      test: ["CMD", "python3", "-c", "import urllib.request; urllib.request.urlopen('http://127.0.0.1:8085/api/health', timeout=2)"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+      start_period: 10s
+    deploy:
+      resources:
+        limits:
+          cpus: "0.50"
+          memory: 96M
+
+networks:
+  default:
+    driver: bridge
+  news-ai_default:
+    external: true
