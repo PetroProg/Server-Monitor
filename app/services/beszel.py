@@ -322,17 +322,33 @@ class BeszelClient:
         if raw_items is None:
             return ContainersResponse(online=False, updated_at=now_str)
 
+        # Beszel retains older container IDs briefly after container recreation;
+        # keep the freshest record per name and drop stale records >2 min behind latest heartbeat.
+        updated_vals = [int(r.get("updated") or 0) for r in raw_items if r.get("updated")]
+        max_updated = max(updated_vals) if updated_vals else 0
+
+        deduped_by_name: Dict[str, Dict[str, Any]] = {}
+        for raw in raw_items:
+            name = str(raw.get("name") or "").lstrip("/")
+            image = str(raw.get("image") or "")
+            if not name or _is_ignored_container(name, image):
+                continue
+            upd = int(raw.get("updated") or 0)
+            if max_updated > 0 and upd > 0 and (max_updated - upd) > 120_000:
+                continue
+            prev = deduped_by_name.get(name)
+            if not prev or upd >= int(prev.get("updated") or 0):
+                deduped_by_name[name] = raw
+
         items: List[ContainerItem] = []
         running_count = 0
         unhealthy_count = 0
         total_cpu = 0.0
         total_ram = 0.0
 
-        for raw in raw_items:
+        for raw in deduped_by_name.values():
             name = str(raw.get("name") or "").lstrip("/")
             image = str(raw.get("image") or "")
-            if not name or _is_ignored_container(name, image):
-                continue
 
             status_str = str(raw.get("status") or "")
             is_running = status_str.lower().startswith("up")

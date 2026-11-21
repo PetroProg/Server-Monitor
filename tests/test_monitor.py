@@ -86,9 +86,10 @@ async def test_beszel_overview_and_containers_parsing():
         ],
     }
     sample_containers = [
-        {"id": "1", "name": "news_ai_app", "image": "news-ai-app", "status": "Up 2 hours", "health": 0, "cpu": 2.1, "memory": 210.5, "net": 12, "ports": "8000"},
-        {"id": "2", "name": "glances", "image": "nicolargo/glances:latest", "status": "Up 2 hours", "health": 0, "cpu": 1.0, "memory": 70.0},
-        {"id": "3", "name": "tech-trainer", "image": "tech-trainer", "status": "Up 2 hours", "health": 2, "cpu": 0.1, "memory": 12.0, "ports": "8080"},
+        {"id": "old", "name": "news_ai_app", "image": "news-ai-app", "status": "Up 3 hours", "updated": 1000, "health": 0, "cpu": 0.0, "memory": 100.0},
+        {"id": "1", "name": "news_ai_app", "image": "news-ai-app", "status": "Up 2 minutes", "updated": 200000, "health": 0, "cpu": 2.1, "memory": 210.5, "net": 12, "ports": "8000"},
+        {"id": "2", "name": "glances", "image": "nicolargo/glances:latest", "status": "Up 2 hours", "updated": 200000, "health": 0, "cpu": 1.0, "memory": 70.0},
+        {"id": "3", "name": "tech-trainer", "image": "tech-trainer", "status": "Up 2 hours", "updated": 200000, "health": 2, "cpu": 0.1, "memory": 12.0, "ports": "8080"},
     ]
 
     with patch.object(bz, "fetch_system_bundle", new=AsyncMock(return_value=sample_bundle)), \
