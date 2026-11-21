@@ -4,7 +4,7 @@
  * - Static assets (CSS/JS/Icons): Stale-While-Revalidate
  */
 
-const CACHE_VERSION = 'v1.0.0';
+const CACHE_VERSION = 'v1.0.1';
 const SHELL_CACHE = `sm-shell-${CACHE_VERSION}`;
 const API_CACHE = `sm-api-${CACHE_VERSION}`;
 

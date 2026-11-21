@@ -1,4 +1,4 @@
-# Petroprog Server Monitor (Mobile-First PWA)
+# Server Monitor (Mobile-First PWA)
 
 Standalone, read-only, mobile-first homelab server & Docker container monitoring PWA powered by **Beszel Hub**.
 

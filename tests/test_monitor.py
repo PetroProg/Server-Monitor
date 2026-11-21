@@ -24,7 +24,7 @@ def test_pages_serve_html_200():
 def test_manifest_and_sw_routes():
     m_resp = client.get("/manifest.webmanifest")
     assert m_resp.status_code == 200
-    assert m_resp.json()["short_name"] == "Petroprog"
+    assert m_resp.json()["short_name"] == "Server Monitor"
 
     sw_resp = client.get("/sw.js")
     assert sw_resp.status_code == 200

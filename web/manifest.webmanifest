@@ -1,7 +1,7 @@
 {
   "id": "/",
-  "name": "Petroprog Server Monitor",
-  "short_name": "Petroprog",
+  "name": "Server Monitor",
+  "short_name": "Server Monitor",
   "description": "Mobile-first telemetry and Docker container monitoring powered by Beszel Hub",
   "lang": "ru",
   "dir": "ltr",

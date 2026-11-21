@@ -27,7 +27,7 @@ BASE_DIR = Path(__file__).resolve().parent.parent
 WEB_DIR = BASE_DIR / "web"
 
 app = FastAPI(
-    title="Petroprog Server Monitor",
+    title="Server Monitor",
     version="1.0.0",
     docs_url=None,
     redoc_url=None,
