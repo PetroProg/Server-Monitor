@@ -6,6 +6,9 @@ import { loadSettings, t } from '../core/settings.js';
 import { escapeHtml, initShell, sparklineSvg } from '../core/shell.js';
 
 let refreshTimer = null;
+let retryTimer = null;
+let abortCtrl = null;
+let lastResumeAt = 0;
 
 function formatBytes(bytes) {
   const b = Number(bytes) || 0;
@@ -156,11 +159,28 @@ function updateQuickLinks(links) {
   if (adguardEl && links?.adguard) adguardEl.href = `http://${host}:${links.adguard}`;
 }
 
-async function fetchAgents() {
+async function fetchAgents({ isRetry = false } = {}) {
   const btn = document.getElementById('refresh-btn');
   if (btn) btn.classList.add('spinning');
+
+  if (abortCtrl) {
+    abortCtrl.abort();
+  }
+  if (retryTimer) {
+    clearTimeout(retryTimer);
+    retryTimer = null;
+  }
+
+  const controller = new AbortController();
+  abortCtrl = controller;
+  const timeoutId = setTimeout(() => controller.abort(), 8000);
+
+  let gotStale = false;
   try {
-    const resp = await fetch('/api/agents/overview', { cache: 'no-store' });
+    const resp = await fetch('/api/agents/overview', { cache: 'no-store', signal: controller.signal });
+    if (resp.headers.get('X-SM-Cache') === 'stale') {
+      gotStale = true;
+    }
     if (!resp.ok) return;
     const data = await resp.json();
     renderNokia(data.nokia);
@@ -168,21 +188,52 @@ async function fetchAgents() {
     renderWatchdogs(data);
     updateQuickLinks(data.quick_links);
   } catch {
+    gotStale = true;
     // Graceful no-op on transient outage
   } finally {
-    if (btn) btn.classList.remove('spinning');
+    clearTimeout(timeoutId);
+    if (abortCtrl === controller) {
+      abortCtrl = null;
+      if (btn) btn.classList.remove('spinning');
+    }
+    if (gotStale && !isRetry && !document.hidden) {
+      retryTimer = setTimeout(() => {
+        retryTimer = null;
+        if (!document.hidden) fetchAgents({ isRetry: true });
+      }, 2500);
+    }
   }
 }
 
-document.addEventListener('DOMContentLoaded', () => {
-  initShell('agents');
-  document.getElementById('refresh-btn')?.addEventListener('click', fetchAgents);
-  fetchAgents();
-
+function scheduleRefresh() {
+  if (refreshTimer) {
+    clearInterval(refreshTimer);
+    refreshTimer = null;
+  }
   const { interval } = loadSettings();
   if (interval > 0) {
     refreshTimer = setInterval(() => {
       if (!document.hidden) fetchAgents();
     }, interval * 1000);
   }
+}
+
+function resumeAndRefresh() {
+  if (document.hidden) return;
+  const now = Date.now();
+  if (now - lastResumeAt < 600) return;
+  lastResumeAt = now;
+  scheduleRefresh();
+  fetchAgents();
+}
+
+document.addEventListener('DOMContentLoaded', () => {
+  initShell('agents');
+  document.getElementById('refresh-btn')?.addEventListener('click', () => fetchAgents());
+  document.addEventListener('visibilitychange', resumeAndRefresh);
+  window.addEventListener('pageshow', resumeAndRefresh);
+  window.addEventListener('focus', resumeAndRefresh);
+  window.addEventListener('online', resumeAndRefresh);
+  fetchAgents();
+  scheduleRefresh();
 });

@@ -31,6 +31,14 @@ def test_manifest_and_sw_routes():
     assert sw_resp.headers.get("service-worker-allowed") == "/"
 
 
+def test_api_responses_disable_http_caching():
+    with patch("app.main.beszel_client.check_health", new=AsyncMock(return_value=True)):
+        resp = client.get("/api/health")
+        assert resp.status_code == 200
+        assert "no-store" in resp.headers.get("cache-control", "")
+        assert resp.headers.get("pragma") == "no-cache"
+
+
 def test_no_restart_routes_exist():
     routes = [r.path for r in app.routes]
     assert not any("restart" in p for p in routes)

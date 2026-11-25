@@ -12,6 +12,9 @@ const state = {
   expanded: new Set(),
   containersData: null,
   timer: null,
+  retryTimer: null,
+  abortCtrl: null,
+  lastResumeAt: 0,
 };
 
 function formatRamMb(mb) {
@@ -179,14 +182,31 @@ function renderContainersTable() {
   });
 }
 
-async function fetchAll() {
+async function fetchAll({ isRetry = false } = {}) {
   const refreshBtn = document.getElementById('refresh-btn');
   if (refreshBtn) refreshBtn.classList.add('spinning');
+
+  if (state.abortCtrl) {
+    state.abortCtrl.abort();
+  }
+  if (state.retryTimer) {
+    clearTimeout(state.retryTimer);
+    state.retryTimer = null;
+  }
+
+  const controller = new AbortController();
+  state.abortCtrl = controller;
+  const timeoutId = setTimeout(() => controller.abort(), 8000);
+
+  let gotStale = false;
   try {
     const [ovResp, ctResp] = await Promise.all([
-      fetch('/api/server/overview', { cache: 'no-store' }),
-      fetch('/api/server/containers', { cache: 'no-store' }),
+      fetch('/api/server/overview', { cache: 'no-store', signal: controller.signal }),
+      fetch('/api/server/containers', { cache: 'no-store', signal: controller.signal }),
     ]);
+    if (ovResp.headers.get('X-SM-Cache') === 'stale' || ctResp.headers.get('X-SM-Cache') === 'stale') {
+      gotStale = true;
+    }
     if (ovResp.ok) {
       renderOverview(await ovResp.json());
     }
@@ -195,14 +215,28 @@ async function fetchAll() {
       renderContainersTable();
     }
   } catch {
+    gotStale = true;
     // Keep last visible state on transient network errors
   } finally {
-    if (refreshBtn) refreshBtn.classList.remove('spinning');
+    clearTimeout(timeoutId);
+    if (state.abortCtrl === controller) {
+      state.abortCtrl = null;
+      if (refreshBtn) refreshBtn.classList.remove('spinning');
+    }
+    if (gotStale && !isRetry && !document.hidden) {
+      state.retryTimer = setTimeout(() => {
+        state.retryTimer = null;
+        if (!document.hidden) fetchAll({ isRetry: true });
+      }, 2500);
+    }
   }
 }
 
 function scheduleRefresh() {
-  if (state.timer) clearInterval(state.timer);
+  if (state.timer) {
+    clearInterval(state.timer);
+    state.timer = null;
+  }
   const { interval } = loadSettings();
   if (interval > 0) {
     state.timer = setInterval(() => {
@@ -211,8 +245,17 @@ function scheduleRefresh() {
   }
 }
 
+function resumeAndRefresh() {
+  if (document.hidden) return;
+  const now = Date.now();
+  if (now - state.lastResumeAt < 600) return;
+  state.lastResumeAt = now;
+  scheduleRefresh();
+  fetchAll();
+}
+
 function bindControls() {
-  document.getElementById('refresh-btn')?.addEventListener('click', fetchAll);
+  document.getElementById('refresh-btn')?.addEventListener('click', () => fetchAll());
 
   const searchToggle = document.getElementById('search-toggle-btn');
   const searchBox = document.getElementById('search-box');
@@ -244,9 +287,10 @@ function bindControls() {
     });
   });
 
-  document.addEventListener('visibilitychange', () => {
-    if (!document.hidden) fetchAll();
-  });
+  document.addEventListener('visibilitychange', resumeAndRefresh);
+  window.addEventListener('pageshow', resumeAndRefresh);
+  window.addEventListener('focus', resumeAndRefresh);
+  window.addEventListener('online', resumeAndRefresh);
 }
 
 document.addEventListener('DOMContentLoaded', () => {

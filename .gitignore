@@ -32,5 +32,6 @@ logs/
 .DS_Store
 Thumbs.db
 
-# Local state & notes
+# Local state & agent instructions (never push to GitHub)
 STATE.md
+GEMINI.md

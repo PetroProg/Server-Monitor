@@ -3,7 +3,7 @@
 import logging
 from pathlib import Path
 
-from fastapi import FastAPI
+from fastapi import FastAPI, Request
 from fastapi.responses import FileResponse, HTMLResponse
 from fastapi.staticfiles import StaticFiles
 
@@ -32,6 +32,15 @@ app = FastAPI(
     docs_url=None,
     redoc_url=None,
 )
+
+
+@app.middleware("http")
+async def add_api_no_cache_headers(request: Request, call_next):
+    response = await call_next(request)
+    if request.url.path.startswith("/api/"):
+        response.headers["Cache-Control"] = "no-store, no-cache, must-revalidate, max-age=0"
+        response.headers["Pragma"] = "no-cache"
+    return response
 
 if (WEB_DIR / "css").exists():
     app.mount("/css", StaticFiles(directory=str(WEB_DIR / "css")), name="css")

@@ -4,7 +4,7 @@
  * - Static assets (CSS/JS/Icons): Stale-While-Revalidate
  */
 
-const CACHE_VERSION = 'v1.0.1';
+const CACHE_VERSION = 'v1.0.2';
 const SHELL_CACHE = `sm-shell-${CACHE_VERSION}`;
 const API_CACHE = `sm-api-${CACHE_VERSION}`;
 
@@ -53,23 +53,39 @@ self.addEventListener('fetch', (event) => {
   const url = new URL(request.url);
   if (url.origin !== self.location.origin) return;
 
-  // 1. API: Network-First
+  // 1. API: Network-First (bypass HTTP cache, timeout guard, mark stale fallback)
   if (url.pathname.startsWith('/api/')) {
     event.respondWith(
       (async () => {
         const cache = await caches.open(API_CACHE);
+        const controller = new AbortController();
+        const timeoutId = setTimeout(() => controller.abort(), 8000);
         try {
-          const netResp = await fetch(request);
+          const netReq = new Request(request, { cache: 'no-store' });
+          const netResp = await fetch(netReq, { signal: controller.signal });
+          clearTimeout(timeoutId);
           if (netResp && netResp.ok) {
             cache.put(request, netResp.clone());
           }
           return netResp;
         } catch {
+          clearTimeout(timeoutId);
           const cached = await cache.match(request);
-          if (cached) return cached;
+          if (cached) {
+            const headers = new Headers(cached.headers);
+            headers.set('X-SM-Cache', 'stale');
+            return new Response(cached.body, {
+              status: cached.status,
+              statusText: cached.statusText,
+              headers,
+            });
+          }
           return new Response(JSON.stringify({ online: false, containers: [] }), {
             status: 200,
-            headers: { 'Content-Type': 'application/json' },
+            headers: {
+              'Content-Type': 'application/json',
+              'X-SM-Cache': 'stale',
+            },
           });
         }
       })()
